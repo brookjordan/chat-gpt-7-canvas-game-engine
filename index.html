@@ -47,7 +47,6 @@
         }
 
         update() {
-          // Loop through all registered keys and trigger onHold for active keys
           for (const key in this.keys) {
             if (
               this.keys[key] &&
@@ -59,7 +58,6 @@
           }
         }
 
-        // Method to bind actions to key press, hold, and release
         bindKey(key, { onPress, onHold, onRelease }) {
           this.keyBindings[key.toLowerCase()] = { onPress, onHold, onRelease };
         }
@@ -96,19 +94,17 @@
 
           this.scaleFactor = 1;
 
-          this.spriteCanvas = document.createElement("canvas");
-          this.spriteCanvas.width = this.player.size;
-          this.spriteCanvas.height = this.player.size;
-          this.spriteCtx = this.spriteCanvas.getContext("2d");
-          this.generateWobblySprite();
+          this.spriteSheet = [];
+          this.currentFrame = 0;
+          this.frameSpeed = 10; // Frames per second for animation
+          this.totalFrames = 10; // Number of frames in the sprite sheet
+
+          this.createSpriteSheet();
 
           this.updateCanvasSize();
-
           window.addEventListener("resize", () => this.updateCanvasSize());
 
-          // Bind movement keys (WASD) to player actions
           this.bindMovementKeys();
-
           this.startGameLoop();
         }
 
@@ -222,16 +218,19 @@
           }
         }
 
-        generateWobblySprite() {
-          const ctx = this.spriteCtx;
+        // Create the sprite sheet with pre-rendered frames
+        createSpriteSheet() {
           const size = this.player.size;
-          let frame = 0;
 
-          const draw = () => {
-            ctx.clearRect(0, 0, size, size);
+          for (let i = 0; i < this.totalFrames; i++) {
+            const canvas = document.createElement("canvas");
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext("2d");
+
+            // Wobble effect by varying ellipse size slightly in each frame
+            const wobble = Math.sin((i / this.totalFrames) * Math.PI * 2) * 5;
             ctx.fillStyle = "blue";
-
-            const wobble = Math.sin(frame / 10) * 5;
             ctx.beginPath();
             ctx.ellipse(
               size / 2 + wobble,
@@ -244,13 +243,11 @@
             );
             ctx.fill();
 
-            frame++;
-            requestAnimationFrame(draw);
-          };
-
-          draw();
+            this.spriteSheet.push(canvas);
+          }
         }
 
+        // Draw the player with the pre-rendered sprite sheet frames
         drawPlayer() {
           const { x, y, size, angle } = this.player;
 
@@ -261,9 +258,10 @@
           );
           this.ctx.rotate(angle);
 
-          // Draw wobbly sprite
+          // Draw the current frame from the sprite sheet
+          const frame = this.spriteSheet[this.currentFrame];
           this.ctx.drawImage(
-            this.spriteCanvas,
+            frame,
             (-size / 2) * this.scaleFactor,
             (-size / 2) * this.scaleFactor,
             size * this.scaleFactor,
@@ -271,6 +269,9 @@
           );
 
           this.ctx.restore();
+
+          // Update to the next frame for the animation
+          this.currentFrame = (this.currentFrame + 1) % this.totalFrames;
         }
 
         render() {
