@@ -104,6 +104,9 @@
             size: 40,
             speed: 200,
             maxSpeed: 200,
+            acceleration: 400, // Acceleration in pixels per second²
+            friction: 0.9, // Friction coefficient for ground
+            airFriction: 0.98, // Friction coefficient while in air
             angle: 0,
             velocity: { x: 0, y: 0 },
             jumpHeight: 0,
@@ -163,7 +166,7 @@
           this.input.bindKey("w", {
             onHold: () => {
               if (this.input.isKeyMoreRecentThan("w", "s")) {
-                this.movePlayer(0, -1);
+                this.acceleratePlayer(0, -1);
               }
             },
           });
@@ -172,7 +175,7 @@
           this.input.bindKey("s", {
             onHold: () => {
               if (this.input.isKeyMoreRecentThan("s", "w")) {
-                this.movePlayer(0, 1);
+                this.acceleratePlayer(0, 1);
               }
             },
           });
@@ -181,7 +184,7 @@
           this.input.bindKey("a", {
             onHold: () => {
               if (this.input.isKeyMoreRecentThan("a", "d")) {
-                this.movePlayer(-1, 0);
+                this.acceleratePlayer(-1, 0);
               }
             },
           });
@@ -190,7 +193,7 @@
           this.input.bindKey("d", {
             onHold: () => {
               if (this.input.isKeyMoreRecentThan("d", "a")) {
-                this.movePlayer(1, 0);
+                this.acceleratePlayer(1, 0);
               }
             },
           });
@@ -241,31 +244,50 @@
           });
         }
 
-        movePlayer(dirX, dirY) {
-          if (this.player.movementLocked) return; // Do not allow control if movement is locked (in air)
+        acceleratePlayer(dirX, dirY) {
+          // Apply acceleration in the given direction
+          const acceleration = this.player.acceleration / 60; // Frame-based acceleration
+          this.player.velocity.x += dirX * acceleration;
+          this.player.velocity.y += dirY * acceleration;
+        }
 
-          // Use the provided dirX and dirY for movement
-          const magnitude = Math.sqrt(dirX * dirX + dirY * dirY);
-          if (magnitude > 0) {
-            dirX /= magnitude;
-            dirY /= magnitude;
+        applyFriction() {
+          // Apply friction to the player's velocity
+          const friction = this.player.isJumping
+            ? this.player.airFriction
+            : this.player.friction;
+          this.player.velocity.x *= friction;
+          this.player.velocity.y *= friction;
+
+          // Cap the player's velocity to max speed
+          const speed = Math.sqrt(
+            this.player.velocity.x ** 2 + this.player.velocity.y ** 2
+          );
+          if (speed > this.player.maxSpeed) {
+            const scale = this.player.maxSpeed / speed;
+            this.player.velocity.x *= scale;
+            this.player.velocity.y *= scale;
           }
+        }
 
-          this.player.velocity.x = dirX * this.player.speed;
-          this.player.velocity.y = dirY * this.player.speed;
-
+        updatePlayerPosition() {
+          // Update the player's position based on velocity
           this.player.x += this.player.velocity.x / 60;
           this.player.y += this.player.velocity.y / 60;
 
+          // Constrain player to world bounds
           this.player.x = Math.max(0, Math.min(this.worldWidth, this.player.x));
           this.player.y = Math.max(
             0,
             Math.min(this.worldHeight, this.player.y)
           );
 
-          // Update angle based on direction
-          if (dirX !== 0 || dirY !== 0) {
-            this.player.angle = Math.atan2(dirY, dirX);
+          // Update angle based on movement
+          if (this.player.velocity.x !== 0 || this.player.velocity.y !== 0) {
+            this.player.angle = Math.atan2(
+              this.player.velocity.y,
+              this.player.velocity.x
+            );
           }
         }
 
@@ -398,6 +420,8 @@
             this.lastUpdateTime = timestamp;
 
             this.input.update();
+            this.applyFriction();
+            this.updatePlayerPosition();
             this.updateCamera();
 
             this.handleJump(deltaTime);
