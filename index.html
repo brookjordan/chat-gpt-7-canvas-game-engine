@@ -286,9 +286,11 @@
           const { x, y, size, angle, jumpHeight, crouchFactor } = this.player;
 
           this.ctx.save();
+          // Offset vertically by 0.5 times the current jump height
+          const visualOffset = jumpHeight * 0.5;
           this.ctx.translate(
             (x - this.camera.x) * this.scaleFactor,
-            (y - this.camera.y - jumpHeight) * this.scaleFactor
+            (y - this.camera.y - visualOffset) * this.scaleFactor
           );
           this.ctx.rotate(angle);
 
