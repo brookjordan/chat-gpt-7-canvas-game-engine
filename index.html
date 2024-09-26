@@ -362,13 +362,14 @@
         }
 
         createSpriteSheets() {
-          this.createSpriteSheet("idle", "#6a5acd");
-          this.createSpriteSheet("running", "#ff4500");
-          this.createSpriteSheet("crouching", "#32cd32");
-          this.createSpriteSheet("jumping", "#1e90ff");
+          // Generate different sprite sheets for each type of animation
+          this.createSpriteSheet("idle", 0.1, 1); // Slight wobble
+          this.createSpriteSheet("running", 0.4, 0.8); // More wobble
+          this.createSpriteSheet("crouching", 0, 0.5); // Squashed for crouching
+          this.createSpriteSheet("jumping", 0, 1.2); // Stretched for jumping
         }
 
-        createSpriteSheet(type, color) {
+        createSpriteSheet(type, wobbleAmount, aspectRatio) {
           const size = this.player.size;
           for (let i = 0; i < this.totalFrames; i++) {
             const canvas = document.createElement("canvas");
@@ -376,14 +377,17 @@
             canvas.height = size;
             const ctx = canvas.getContext("2d");
 
-            const wobble = Math.sin((i / this.totalFrames) * Math.PI * 2) * 5;
-            ctx.fillStyle = color; // Different color per animation type
+            const wobble =
+              Math.sin((i / this.totalFrames) * Math.PI * 2) *
+              wobbleAmount *
+              size;
+            ctx.fillStyle = "blue"; // Keep the color consistent
             ctx.beginPath();
             ctx.ellipse(
               size / 2 + wobble,
               size / 2,
               size / 2,
-              size / 2.2,
+              (size / 2) * aspectRatio,
               0,
               0,
               Math.PI * 2
