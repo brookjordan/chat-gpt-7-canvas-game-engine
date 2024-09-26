@@ -22,7 +22,7 @@
       class InputHandler {
         constructor() {
           this.keys = {};
-          this.keyOrder = []; // Stores the order in which keys were pressed
+          this.keyOrder = [];
           this.keyBindings = {};
 
           window.addEventListener("keydown", (e) => this.onKeyDown(e));
@@ -33,7 +33,7 @@
           const key = event.key.toLowerCase();
           if (!this.keys[key]) {
             this.keys[key] = true;
-            this.keyOrder.push(key); // Add the key to the order array
+            this.keyOrder.push(key);
 
             if (this.keyBindings[key] && this.keyBindings[key].onPress) {
               this.keyBindings[key].onPress();
@@ -44,7 +44,7 @@
         onKeyUp(event) {
           const key = event.key.toLowerCase();
           this.keys[key] = false;
-          this.keyOrder = this.keyOrder.filter((k) => k !== key); // Remove the key from order
+          this.keyOrder = this.keyOrder.filter((k) => k !== key);
 
           if (this.keyBindings[key] && this.keyBindings[key].onRelease) {
             this.keyBindings[key].onRelease();
@@ -58,7 +58,6 @@
         }
 
         update() {
-          // Get the most recent key press and trigger onHold for active keys
           const currentKey = this.getCurrentKey();
           if (
             currentKey &&
@@ -79,7 +78,7 @@
         constructor(width, height) {
           this.gameWidth = width;
           this.gameHeight = height;
-          this.worldWidth = width * 2; // Larger world than the viewable area
+          this.worldWidth = width * 2;
           this.worldHeight = height * 2;
           this.canvas = document.getElementById("gameCanvas");
           this.ctx = this.canvas.getContext("2d");
@@ -88,9 +87,17 @@
             x: width / 2,
             y: height / 2,
             size: 40,
-            speed: 200, // pixels per second
-            angle: 0, // Angle the player is facing
+            speed: 200,
+            angle: 0,
             velocity: { x: 0, y: 0 },
+            jumpHeight: 0,
+            isJumping: false,
+            isChargingJump: false,
+            crouchFactor: 1,
+            jumpCharge: 0,
+            maxJumpHeight: 2 * 40, // 2 times the character size
+            baseJumpHeight: 1.5 * 40, // 1.5 times the character size
+            jumpVelocity: 0,
           };
 
           this.camera = {
@@ -108,8 +115,11 @@
 
           this.spriteSheet = [];
           this.currentFrame = 0;
-          this.frameSpeed = 6; // Slowed down frame speed for wobble animation
-          this.totalFrames = 10; // Number of frames in the sprite sheet
+          this.frameSpeed = 6;
+          this.totalFrames = 10;
+
+          this.gravity = 9.8;
+          this.jumpSpeed = 300;
 
           this.createSpriteSheet();
 
@@ -117,15 +127,14 @@
           window.addEventListener("resize", () => this.updateCanvasSize());
 
           this.bindMovementKeys();
+          this.bindJumpKey();
+
           this.startGameLoop();
         }
 
         updateCanvasSize() {
-          // Resize the canvas to full window size
           this.canvas.width = window.innerWidth;
           this.canvas.height = window.innerHeight;
-
-          // Uniform scale factor based on the smaller dimension (to maintain aspect ratio)
           this.scaleFactor = Math.min(
             this.canvas.width / this.gameWidth,
             this.canvas.height / this.gameHeight
@@ -135,53 +144,88 @@
         }
 
         bindMovementKeys() {
-          // W key (Move Up)
-          this.input.bindKey("w", {
-            onHold: () => this.movePlayer(0, -1),
-          });
+          this.input.bindKey("w", { onHold: () => this.movePlayer(0, -1) });
+          this.input.bindKey("s", { onHold: () => this.movePlayer(0, 1) });
+          this.input.bindKey("a", { onHold: () => this.movePlayer(-1, 0) });
+          this.input.bindKey("d", { onHold: () => this.movePlayer(1, 0) });
+        }
 
-          // S key (Move Down)
-          this.input.bindKey("s", {
-            onHold: () => this.movePlayer(0, 1),
-          });
-
-          // A key (Move Left)
-          this.input.bindKey("a", {
-            onHold: () => this.movePlayer(-1, 0),
-          });
-
-          // D key (Move Right)
-          this.input.bindKey("d", {
-            onHold: () => this.movePlayer(1, 0),
+        bindJumpKey() {
+          this.input.bindKey(" ", {
+            onPress: () => {
+              this.player.isChargingJump = true;
+              this.player.jumpCharge = 0;
+            },
+            onHold: () => {
+              if (this.player.isChargingJump) {
+                this.player.jumpCharge = Math.min(
+                  1,
+                  this.player.jumpCharge + 0.01
+                );
+                this.player.crouchFactor = 1 - this.player.jumpCharge * 0.2;
+              }
+            },
+            onRelease: () => {
+              if (this.player.isChargingJump) {
+                this.player.isChargingJump = false;
+                this.player.isJumping = true;
+                this.player.jumpHeight =
+                  this.player.baseJumpHeight +
+                  (this.player.maxJumpHeight - this.player.baseJumpHeight) *
+                    this.player.jumpCharge;
+                this.player.jumpVelocity = -this.jumpSpeed; // Initial jump speed upwards
+                this.player.crouchFactor = 1;
+                this.player.jumpCharge = 0;
+              }
+            },
           });
         }
 
         movePlayer(dirX, dirY) {
-          // Normalize direction for diagonal movement
-          const magnitude = Math.sqrt(dirX * dirX + dirY * dirY);
+          if (this.player.isJumping) return;
+
+          let inputX = 0;
+          let inputY = 0;
+
+          if (this.input.keys["w"] && !this.input.keys["s"]) inputY = -1;
+          if (this.input.keys["s"] && !this.input.keys["w"]) inputY = 1;
+          if (this.input.keys["a"] && !this.input.keys["d"]) inputX = -1;
+          if (this.input.keys["d"] && !this.input.keys["a"]) inputX = 1;
+
+          const magnitude = Math.sqrt(inputX * inputX + inputY * inputY);
           if (magnitude > 0) {
-            dirX /= magnitude;
-            dirY /= magnitude;
+            inputX /= magnitude;
+            inputY /= magnitude;
           }
 
-          // Set the velocity based on movement
-          this.player.velocity.x = dirX * this.player.speed;
-          this.player.velocity.y = dirY * this.player.speed;
+          this.player.velocity.x = inputX * this.player.speed;
+          this.player.velocity.y = inputY * this.player.speed;
 
-          // Update player position based on velocity
-          this.player.x += this.player.velocity.x / 60; // divide by 60 to approximate frame rate
+          this.player.x += this.player.velocity.x / 60;
           this.player.y += this.player.velocity.y / 60;
 
-          // Keep player inside the world bounds
           this.player.x = Math.max(0, Math.min(this.worldWidth, this.player.x));
           this.player.y = Math.max(
             0,
             Math.min(this.worldHeight, this.player.y)
           );
 
-          // Update player's angle based on direction
-          if (dirX !== 0 || dirY !== 0) {
-            this.player.angle = Math.atan2(dirY, dirX);
+          if (inputX !== 0 || inputY !== 0) {
+            this.player.angle = Math.atan2(inputY, inputX);
+          }
+        }
+
+        handleJump(deltaTime) {
+          if (this.player.isJumping) {
+            const gravityForce = this.gravity * deltaTime;
+            this.player.jumpVelocity += gravityForce;
+            this.player.jumpHeight += this.player.jumpVelocity * deltaTime;
+
+            if (this.player.jumpHeight >= 0) {
+              this.player.isJumping = false;
+              this.player.jumpHeight = 0;
+              this.player.jumpVelocity = 0;
+            }
           }
         }
 
@@ -212,17 +256,14 @@
           }
         }
 
-        // Create the sprite sheet with pre-rendered frames
         createSpriteSheet() {
           const size = this.player.size;
-
           for (let i = 0; i < this.totalFrames; i++) {
             const canvas = document.createElement("canvas");
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext("2d");
 
-            // Wobble effect by varying ellipse size slightly in each frame
             const wobble = Math.sin((i / this.totalFrames) * Math.PI * 2) * 5;
             ctx.fillStyle = "blue";
             ctx.beginPath();
@@ -241,37 +282,33 @@
           }
         }
 
-        // Draw the player with the pre-rendered sprite sheet frames
         drawPlayer() {
-          const { x, y, size, angle } = this.player;
+          const { x, y, size, angle, jumpHeight, crouchFactor } = this.player;
 
           this.ctx.save();
           this.ctx.translate(
-            (this.player.x - this.camera.x) * this.scaleFactor,
-            (this.player.y - this.camera.y) * this.scaleFactor
+            (x - this.camera.x) * this.scaleFactor,
+            (y - this.camera.y - jumpHeight) * this.scaleFactor
           );
           this.ctx.rotate(angle);
 
-          // Draw the current frame from the sprite sheet
           const frame =
             this.spriteSheet[Math.floor(this.currentFrame / this.frameSpeed)];
           this.ctx.drawImage(
             frame,
             (-size / 2) * this.scaleFactor,
-            (-size / 2) * this.scaleFactor,
+            (-size / 2) * this.scaleFactor * crouchFactor,
             size * this.scaleFactor,
-            size * this.scaleFactor
+            size * this.scaleFactor * crouchFactor
           );
 
           this.ctx.restore();
 
-          // Update to the next frame for the animation, looping based on frame speed
           this.currentFrame =
             (this.currentFrame + 1) % (this.totalFrames * this.frameSpeed);
         }
 
         updateCamera() {
-          // Smooth camera follow with lag effect
           this.camera.x +=
             (this.player.x - this.camera.x - this.camera.width / 2) *
             this.camera.lagFactor;
@@ -279,7 +316,6 @@
             (this.player.y - this.camera.y - this.camera.height / 2) *
             this.camera.lagFactor;
 
-          // Clamp camera within world bounds
           this.camera.x = Math.max(
             0,
             Math.min(this.worldWidth - this.camera.width, this.camera.x)
@@ -291,13 +327,8 @@
         }
 
         render() {
-          // Clear canvas
           this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-          // Draw the checkerboard floor
           this.drawCheckerboard();
-
-          // Draw the player
           this.drawPlayer();
         }
 
@@ -306,9 +337,10 @@
             const deltaTime = (timestamp - this.lastUpdateTime) / 1000;
             this.lastUpdateTime = timestamp;
 
-            this.input.update(); // Update input handler
-            this.updateCamera(); // Camera lag even when not moving
+            this.input.update();
+            this.updateCamera();
 
+            this.handleJump(deltaTime);
             this.render();
 
             requestAnimationFrame(loop);
