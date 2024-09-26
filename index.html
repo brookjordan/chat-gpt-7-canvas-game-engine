@@ -104,7 +104,7 @@
             size: 40,
             speed: 200,
             maxSpeed: 200,
-            acceleration: 400, // Acceleration in pixels per second²
+            acceleration: 800, // Faster acceleration on ground
             friction: 0.9, // Friction coefficient for ground
             airFriction: 0.98, // Friction coefficient while in air
             angle: 0,
@@ -165,7 +165,10 @@
           // W key (Move Up) only if more recent than 's'
           this.input.bindKey("w", {
             onHold: () => {
-              if (this.input.isKeyMoreRecentThan("w", "s")) {
+              if (
+                !this.player.isJumping &&
+                this.input.isKeyMoreRecentThan("w", "s")
+              ) {
                 this.acceleratePlayer(0, -1);
               }
             },
@@ -174,7 +177,10 @@
           // S key (Move Down) only if more recent than 'w'
           this.input.bindKey("s", {
             onHold: () => {
-              if (this.input.isKeyMoreRecentThan("s", "w")) {
+              if (
+                !this.player.isJumping &&
+                this.input.isKeyMoreRecentThan("s", "w")
+              ) {
                 this.acceleratePlayer(0, 1);
               }
             },
@@ -183,7 +189,10 @@
           // A key (Move Left) only if more recent than 'd'
           this.input.bindKey("a", {
             onHold: () => {
-              if (this.input.isKeyMoreRecentThan("a", "d")) {
+              if (
+                !this.player.isJumping &&
+                this.input.isKeyMoreRecentThan("a", "d")
+              ) {
                 this.acceleratePlayer(-1, 0);
               }
             },
@@ -192,7 +201,10 @@
           // D key (Move Right) only if more recent than 'a'
           this.input.bindKey("d", {
             onHold: () => {
-              if (this.input.isKeyMoreRecentThan("d", "a")) {
+              if (
+                !this.player.isJumping &&
+                this.input.isKeyMoreRecentThan("d", "a")
+              ) {
                 this.acceleratePlayer(1, 0);
               }
             },
@@ -245,10 +257,12 @@
         }
 
         acceleratePlayer(dirX, dirY) {
-          // Apply acceleration in the given direction
-          const acceleration = this.player.acceleration / 60; // Frame-based acceleration
-          this.player.velocity.x += dirX * acceleration;
-          this.player.velocity.y += dirY * acceleration;
+          // Only accelerate if on the ground
+          if (!this.player.isJumping) {
+            const acceleration = this.player.acceleration / 60; // Frame-based acceleration
+            this.player.velocity.x += dirX * acceleration;
+            this.player.velocity.y += dirY * acceleration;
+          }
         }
 
         applyFriction() {
