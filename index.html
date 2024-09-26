@@ -52,7 +52,7 @@
         }
 
         getCurrentMovement() {
-          // Check for latest direction key in keyOrder that's still pressed
+          // Return the last pressed movement key that is still active
           for (let i = this.keyOrder.length - 1; i >= 0; i--) {
             const key = this.keyOrder[i];
             if (
@@ -95,6 +95,7 @@
             y: height / 2,
             size: 40,
             speed: 200,
+            maxSpeed: 200,
             angle: 0,
             velocity: { x: 0, y: 0 },
             jumpHeight: 0,
@@ -105,6 +106,7 @@
             maxJumpHeight: 2 * 40, // 2 times the character size
             baseJumpHeight: 1.5 * 40, // 1.5 times the character size
             jumpVelocity: 0,
+            movementLocked: false, // New property to lock movement in the air
           };
 
           this.camera = {
@@ -163,24 +165,36 @@
             },
             onHold: () => {
               if (this.player.isChargingJump) {
+                // Gradually charge the jump
                 this.player.jumpCharge = Math.min(
                   1,
                   this.player.jumpCharge + 0.01
                 );
                 this.player.crouchFactor = 1 - this.player.jumpCharge * 0.2;
+
+                // Slow down the character's speed while charging jump
+                this.player.speed =
+                  this.player.maxSpeed * (1 - this.player.jumpCharge);
               }
             },
             onRelease: () => {
               if (this.player.isChargingJump) {
                 this.player.isChargingJump = false;
                 this.player.isJumping = true;
+                this.player.movementLocked = true;
+
+                // Calculate jump height based on charge
                 const jumpHeight =
                   this.player.baseJumpHeight +
                   (this.player.maxJumpHeight - this.player.baseJumpHeight) *
                     this.player.jumpCharge;
                 this.player.jumpVelocity = -Math.sqrt(
                   2 * this.gravity * jumpHeight
-                ); // Calculate initial velocity for jump height
+                ); // Initial upward velocity
+
+                // Reset speed after charging
+                this.player.speed = this.player.maxSpeed;
+
                 this.player.crouchFactor = 1;
                 this.player.jumpCharge = 0;
               }
@@ -189,7 +203,7 @@
         }
 
         movePlayer(dirX, dirY) {
-          if (this.player.isJumping) return;
+          if (this.player.movementLocked) return; // Do not allow control if movement is locked (in air)
 
           let inputX = 0;
           let inputY = 0;
@@ -235,6 +249,7 @@
               this.player.isJumping = false;
               this.player.jumpHeight = 0;
               this.player.jumpVelocity = 0;
+              this.player.movementLocked = false; // Allow movement again when grounded
             }
           }
         }
