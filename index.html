@@ -118,9 +118,7 @@
           this.frameSpeed = 6;
           this.totalFrames = 10;
 
-          this.gravity = 9.8;
-          this.jumpSpeed = 300;
-
+          this.gravity = 600; // Gravity force in pixels per second²
           this.createSpriteSheet();
 
           this.updateCanvasSize();
@@ -169,11 +167,13 @@
               if (this.player.isChargingJump) {
                 this.player.isChargingJump = false;
                 this.player.isJumping = true;
-                this.player.jumpHeight =
+                const jumpHeight =
                   this.player.baseJumpHeight +
                   (this.player.maxJumpHeight - this.player.baseJumpHeight) *
                     this.player.jumpCharge;
-                this.player.jumpVelocity = -this.jumpSpeed; // Initial jump speed upwards
+                this.player.jumpVelocity = -Math.sqrt(
+                  2 * this.gravity * jumpHeight
+                ); // Calculate initial velocity for jump height
                 this.player.crouchFactor = 1;
                 this.player.jumpCharge = 0;
               }
@@ -217,11 +217,14 @@
 
         handleJump(deltaTime) {
           if (this.player.isJumping) {
-            const gravityForce = this.gravity * deltaTime;
-            this.player.jumpVelocity += gravityForce;
-            this.player.jumpHeight += this.player.jumpVelocity * deltaTime;
+            // Update the vertical velocity with gravity
+            this.player.jumpVelocity += this.gravity * deltaTime;
 
-            if (this.player.jumpHeight >= 0) {
+            // Apply the vertical velocity to jump height
+            this.player.jumpHeight -= this.player.jumpVelocity * deltaTime;
+
+            // When the character reaches the ground, reset the jump state
+            if (this.player.jumpHeight <= 0) {
               this.player.isJumping = false;
               this.player.jumpHeight = 0;
               this.player.jumpVelocity = 0;
