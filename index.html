@@ -51,17 +51,24 @@
           }
         }
 
-        getCurrentKey() {
-          return this.keyOrder.length > 0
-            ? this.keyOrder[this.keyOrder.length - 1]
-            : null;
+        getCurrentMovement() {
+          // Check for latest direction key in keyOrder that's still pressed
+          for (let i = this.keyOrder.length - 1; i >= 0; i--) {
+            const key = this.keyOrder[i];
+            if (
+              this.keys[key] &&
+              (key === "w" || key === "s" || key === "a" || key === "d")
+            ) {
+              return key;
+            }
+          }
+          return null;
         }
 
         update() {
-          const currentKey = this.getCurrentKey();
+          const currentKey = this.getCurrentMovement();
           if (
             currentKey &&
-            this.keys[currentKey] &&
             this.keyBindings[currentKey] &&
             this.keyBindings[currentKey].onHold
           ) {
