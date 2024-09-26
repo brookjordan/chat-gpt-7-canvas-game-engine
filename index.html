@@ -31,16 +31,30 @@
           this.player = {
             x: width / 2,
             y: height / 2,
-            size: 20,
+            size: 40,
             speed: 200, // pixels per second
             angle: 0, // Angle the player is facing
             velocity: { x: 0, y: 0 },
           };
 
-          this.camera = { x: 0, y: 0, width: width, height: height };
+          this.camera = {
+            x: 0,
+            y: 0,
+            width: width,
+            height: height,
+            lagFactor: 0.1,
+          };
 
           this.keys = { w: false, s: false, a: false, d: false };
           this.lastUpdateTime = 0;
+
+          this.scaleFactor = 1;
+
+          this.spriteCanvas = document.createElement("canvas");
+          this.spriteCanvas.width = this.player.size;
+          this.spriteCanvas.height = this.player.size;
+          this.spriteCtx = this.spriteCanvas.getContext("2d");
+          this.generateWobblySprite();
 
           this.updateCanvasSize();
 
@@ -56,8 +70,13 @@
           this.canvas.width = window.innerWidth;
           this.canvas.height = window.innerHeight;
 
-          this.scaleFactorX = this.canvas.width / this.gameWidth;
-          this.scaleFactorY = this.canvas.height / this.gameHeight;
+          // Uniform scale factor based on the smaller dimension (to maintain aspect ratio)
+          this.scaleFactor = Math.min(
+            this.canvas.width / this.gameWidth,
+            this.canvas.height / this.gameHeight
+          );
+          this.camera.width = this.canvas.width / this.scaleFactor;
+          this.camera.height = this.canvas.height / this.scaleFactor;
         }
 
         handleKeyDown(event) {
@@ -109,54 +128,79 @@
             Math.min(this.worldHeight, this.player.y)
           );
 
-          // Update camera position to follow the player, keeping the player centered
+          // Smooth camera follow with lag effect
+          this.camera.x +=
+            (this.player.x - this.camera.x - this.camera.width / 2) *
+            this.camera.lagFactor;
+          this.camera.y +=
+            (this.player.y - this.camera.y - this.camera.height / 2) *
+            this.camera.lagFactor;
+
+          // Clamp camera within world bounds
           this.camera.x = Math.max(
             0,
-            Math.min(
-              this.worldWidth - this.camera.width,
-              this.player.x - this.camera.width / 2
-            )
+            Math.min(this.worldWidth - this.camera.width, this.camera.x)
           );
           this.camera.y = Math.max(
             0,
-            Math.min(
-              this.worldHeight - this.camera.height,
-              this.player.y - this.camera.height / 2
-            )
+            Math.min(this.worldHeight - this.camera.height, this.camera.y)
           );
         }
 
         drawCheckerboard() {
           const tileSize = 100;
-          const scaledTileSizeX = tileSize * this.scaleFactorX;
-          const scaledTileSizeY = tileSize * this.scaleFactorY;
-          const startX =
-            Math.floor(this.camera.x / scaledTileSizeX) * scaledTileSizeX;
-          const startY =
-            Math.floor(this.camera.y / scaledTileSizeY) * scaledTileSizeY;
+          const startX = Math.floor(this.camera.x / tileSize) * tileSize;
+          const startY = Math.floor(this.camera.y / tileSize) * tileSize;
 
           for (
             let y = startY;
             y < this.camera.y + this.camera.height;
-            y += scaledTileSizeY
+            y += tileSize
           ) {
             for (
               let x = startX;
               x < this.camera.x + this.camera.width;
-              x += scaledTileSizeX
+              x += tileSize
             ) {
               this.ctx.fillStyle =
-                (x / scaledTileSizeX + y / scaledTileSizeY) % 2 === 0
-                  ? "#ddd"
-                  : "#999";
+                (x / tileSize + y / tileSize) % 2 === 0 ? "#ddd" : "#999";
               this.ctx.fillRect(
-                (x - this.camera.x) * this.scaleFactorX,
-                (y - this.camera.y) * this.scaleFactorY,
-                scaledTileSizeX,
-                scaledTileSizeY
+                (x - this.camera.x) * this.scaleFactor,
+                (y - this.camera.y) * this.scaleFactor,
+                tileSize * this.scaleFactor,
+                tileSize * this.scaleFactor
               );
             }
           }
+        }
+
+        generateWobblySprite() {
+          const ctx = this.spriteCtx;
+          const size = this.player.size;
+          let frame = 0;
+
+          const draw = () => {
+            ctx.clearRect(0, 0, size, size);
+            ctx.fillStyle = "blue";
+
+            const wobble = Math.sin(frame / 10) * 5;
+            ctx.beginPath();
+            ctx.ellipse(
+              size / 2 + wobble,
+              size / 2,
+              size / 2,
+              size / 2.2,
+              0,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+
+            frame++;
+            requestAnimationFrame(draw);
+          };
+
+          draw();
         }
 
         drawPlayer() {
@@ -164,17 +208,20 @@
 
           this.ctx.save();
           this.ctx.translate(
-            (this.player.x - this.camera.x) * this.scaleFactorX,
-            (this.player.y - this.camera.y) * this.scaleFactorY
+            (this.player.x - this.camera.x) * this.scaleFactor,
+            (this.player.y - this.camera.y) * this.scaleFactor
           );
           this.ctx.rotate(angle);
-          this.ctx.fillStyle = "blue";
-          this.ctx.fillRect(
-            (-size / 2) * this.scaleFactorX,
-            (-size / 2) * this.scaleFactorY,
-            size * this.scaleFactorX,
-            size * this.scaleFactorY
+
+          // Draw wobbly sprite
+          this.ctx.drawImage(
+            this.spriteCanvas,
+            (-size / 2) * this.scaleFactor,
+            (-size / 2) * this.scaleFactor,
+            size * this.scaleFactor,
+            size * this.scaleFactor
           );
+
           this.ctx.restore();
         }
 
