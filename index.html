@@ -134,13 +134,18 @@
 
           this.scaleFactor = 1;
 
-          this.spriteSheet = [];
+          this.spriteSheets = {
+            idle: [],
+            running: [],
+            crouching: [],
+            jumping: [],
+          };
           this.currentFrame = 0;
-          this.frameSpeed = 6;
+          this.frameSpeed = 6; // Speed at which frames of animation play
           this.totalFrames = 10;
 
           this.gravity = 600; // Gravity force in pixels per second²
-          this.createSpriteSheet();
+          this.createSpriteSheets();
 
           this.updateCanvasSize();
           window.addEventListener("resize", () => this.updateCanvasSize());
@@ -356,7 +361,14 @@
           }
         }
 
-        createSpriteSheet() {
+        createSpriteSheets() {
+          this.createSpriteSheet("idle", "#6a5acd");
+          this.createSpriteSheet("running", "#ff4500");
+          this.createSpriteSheet("crouching", "#32cd32");
+          this.createSpriteSheet("jumping", "#1e90ff");
+        }
+
+        createSpriteSheet(type, color) {
           const size = this.player.size;
           for (let i = 0; i < this.totalFrames; i++) {
             const canvas = document.createElement("canvas");
@@ -365,7 +377,7 @@
             const ctx = canvas.getContext("2d");
 
             const wobble = Math.sin((i / this.totalFrames) * Math.PI * 2) * 5;
-            ctx.fillStyle = "blue";
+            ctx.fillStyle = color; // Different color per animation type
             ctx.beginPath();
             ctx.ellipse(
               size / 2 + wobble,
@@ -378,12 +390,30 @@
             );
             ctx.fill();
 
-            this.spriteSheet.push(canvas);
+            this.spriteSheets[type].push(canvas);
           }
         }
 
         drawPlayer() {
           const { x, y, size, angle, jumpHeight, crouchFactor } = this.player;
+
+          // Draw shadow first
+          this.drawShadow(x, y);
+
+          // Determine the correct animation based on player state
+          let spriteSheet;
+          const speed = Math.sqrt(
+            this.player.velocity.x ** 2 + this.player.velocity.y ** 2
+          );
+          if (this.player.isChargingJump) {
+            spriteSheet = this.spriteSheets.crouching;
+          } else if (this.player.isJumping) {
+            spriteSheet = this.spriteSheets.jumping;
+          } else if (speed > this.player.maxSpeed * 0.5) {
+            spriteSheet = this.spriteSheets.running;
+          } else {
+            spriteSheet = this.spriteSheets.idle;
+          }
 
           this.ctx.save();
           // Offset vertically by 0.5 times the current jump height
@@ -395,7 +425,7 @@
           this.ctx.rotate(angle);
 
           const frame =
-            this.spriteSheet[Math.floor(this.currentFrame / this.frameSpeed)];
+            spriteSheet[Math.floor(this.currentFrame / this.frameSpeed)];
           // Apply crouch factor to size
           this.ctx.drawImage(
             frame,
@@ -409,9 +439,6 @@
 
           this.currentFrame =
             (this.currentFrame + 1) % (this.totalFrames * this.frameSpeed);
-
-          // Draw shadow
-          this.drawShadow(x, y);
         }
 
         drawShadow(x, y) {
