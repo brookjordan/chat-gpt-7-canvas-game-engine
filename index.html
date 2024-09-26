@@ -102,11 +102,11 @@
             x: width / 2,
             y: height / 2,
             size: 40,
-            speed: 200,
-            maxSpeed: 200,
-            acceleration: 800, // Faster acceleration on ground
-            friction: 0.9, // Friction coefficient for ground
-            airFriction: 0.98, // Friction coefficient while in air
+            speed: 1000, // Increased speed for more responsiveness
+            maxSpeed: 1000, // Increased max speed
+            acceleration: 3000, // Faster acceleration on ground
+            friction: 0.93, // Reduced ground friction for more sliding
+            airFriction: 0.98, // Reduced air friction for smoother jumps
             angle: 0,
             velocity: { x: 0, y: 0 },
             jumpHeight: 0,
@@ -226,10 +226,10 @@
                 // Gradually charge the jump
                 this.player.jumpCharge = Math.min(
                   1,
-                  this.player.jumpCharge + 0.01
-                );
+                  this.player.jumpCharge + 0.02
+                ); // Faster charge
                 // Scale the character down as crouch progresses
-                this.player.crouchFactor = 1 - this.player.jumpCharge * 0.2;
+                this.player.crouchFactor = 1 - this.player.jumpCharge * 0.3; // More visible crouch
 
                 // Slow down the character's speed while charging jump
                 this.player.speed =
@@ -395,7 +395,7 @@
 
           const frame =
             this.spriteSheet[Math.floor(this.currentFrame / this.frameSpeed)];
-          // Apply crouch factor to vertical scaling
+          // Apply crouch factor to size
           this.ctx.drawImage(
             frame,
             (-size / 2) * this.scaleFactor,
