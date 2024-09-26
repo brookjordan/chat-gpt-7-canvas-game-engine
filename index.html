@@ -22,6 +22,7 @@
       class InputHandler {
         constructor() {
           this.keys = {};
+          this.keyOrder = []; // Stores the order in which keys were pressed
           this.keyBindings = {};
 
           window.addEventListener("keydown", (e) => this.onKeyDown(e));
@@ -32,6 +33,8 @@
           const key = event.key.toLowerCase();
           if (!this.keys[key]) {
             this.keys[key] = true;
+            this.keyOrder.push(key); // Add the key to the order array
+
             if (this.keyBindings[key] && this.keyBindings[key].onPress) {
               this.keyBindings[key].onPress();
             }
@@ -41,20 +44,29 @@
         onKeyUp(event) {
           const key = event.key.toLowerCase();
           this.keys[key] = false;
+          this.keyOrder = this.keyOrder.filter((k) => k !== key); // Remove the key from order
+
           if (this.keyBindings[key] && this.keyBindings[key].onRelease) {
             this.keyBindings[key].onRelease();
           }
         }
 
+        getCurrentKey() {
+          return this.keyOrder.length > 0
+            ? this.keyOrder[this.keyOrder.length - 1]
+            : null;
+        }
+
         update() {
-          for (const key in this.keys) {
-            if (
-              this.keys[key] &&
-              this.keyBindings[key] &&
-              this.keyBindings[key].onHold
-            ) {
-              this.keyBindings[key].onHold();
-            }
+          // Get the most recent key press and trigger onHold for active keys
+          const currentKey = this.getCurrentKey();
+          if (
+            currentKey &&
+            this.keys[currentKey] &&
+            this.keyBindings[currentKey] &&
+            this.keyBindings[currentKey].onHold
+          ) {
+            this.keyBindings[currentKey].onHold();
           }
         }
 
@@ -96,7 +108,7 @@
 
           this.spriteSheet = [];
           this.currentFrame = 0;
-          this.frameSpeed = 10; // Frames per second for animation
+          this.frameSpeed = 6; // Slowed down frame speed for wobble animation
           this.totalFrames = 10; // Number of frames in the sprite sheet
 
           this.createSpriteSheet();
@@ -171,24 +183,6 @@
           if (dirX !== 0 || dirY !== 0) {
             this.player.angle = Math.atan2(dirY, dirX);
           }
-
-          // Smooth camera follow with lag effect
-          this.camera.x +=
-            (this.player.x - this.camera.x - this.camera.width / 2) *
-            this.camera.lagFactor;
-          this.camera.y +=
-            (this.player.y - this.camera.y - this.camera.height / 2) *
-            this.camera.lagFactor;
-
-          // Clamp camera within world bounds
-          this.camera.x = Math.max(
-            0,
-            Math.min(this.worldWidth - this.camera.width, this.camera.x)
-          );
-          this.camera.y = Math.max(
-            0,
-            Math.min(this.worldHeight - this.camera.height, this.camera.y)
-          );
         }
 
         drawCheckerboard() {
@@ -259,7 +253,8 @@
           this.ctx.rotate(angle);
 
           // Draw the current frame from the sprite sheet
-          const frame = this.spriteSheet[this.currentFrame];
+          const frame =
+            this.spriteSheet[Math.floor(this.currentFrame / this.frameSpeed)];
           this.ctx.drawImage(
             frame,
             (-size / 2) * this.scaleFactor,
@@ -270,8 +265,29 @@
 
           this.ctx.restore();
 
-          // Update to the next frame for the animation
-          this.currentFrame = (this.currentFrame + 1) % this.totalFrames;
+          // Update to the next frame for the animation, looping based on frame speed
+          this.currentFrame =
+            (this.currentFrame + 1) % (this.totalFrames * this.frameSpeed);
+        }
+
+        updateCamera() {
+          // Smooth camera follow with lag effect
+          this.camera.x +=
+            (this.player.x - this.camera.x - this.camera.width / 2) *
+            this.camera.lagFactor;
+          this.camera.y +=
+            (this.player.y - this.camera.y - this.camera.height / 2) *
+            this.camera.lagFactor;
+
+          // Clamp camera within world bounds
+          this.camera.x = Math.max(
+            0,
+            Math.min(this.worldWidth - this.camera.width, this.camera.x)
+          );
+          this.camera.y = Math.max(
+            0,
+            Math.min(this.worldHeight - this.camera.height, this.camera.y)
+          );
         }
 
         render() {
@@ -291,6 +307,7 @@
             this.lastUpdateTime = timestamp;
 
             this.input.update(); // Update input handler
+            this.updateCamera(); // Camera lag even when not moving
 
             this.render();
 
