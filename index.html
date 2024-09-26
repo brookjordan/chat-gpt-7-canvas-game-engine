@@ -19,6 +19,52 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
+      class InputHandler {
+        constructor() {
+          this.keys = {};
+          this.keyBindings = {};
+
+          window.addEventListener("keydown", (e) => this.onKeyDown(e));
+          window.addEventListener("keyup", (e) => this.onKeyUp(e));
+        }
+
+        onKeyDown(event) {
+          const key = event.key.toLowerCase();
+          if (!this.keys[key]) {
+            this.keys[key] = true;
+            if (this.keyBindings[key] && this.keyBindings[key].onPress) {
+              this.keyBindings[key].onPress();
+            }
+          }
+        }
+
+        onKeyUp(event) {
+          const key = event.key.toLowerCase();
+          this.keys[key] = false;
+          if (this.keyBindings[key] && this.keyBindings[key].onRelease) {
+            this.keyBindings[key].onRelease();
+          }
+        }
+
+        update() {
+          // Loop through all registered keys and trigger onHold for active keys
+          for (const key in this.keys) {
+            if (
+              this.keys[key] &&
+              this.keyBindings[key] &&
+              this.keyBindings[key].onHold
+            ) {
+              this.keyBindings[key].onHold();
+            }
+          }
+        }
+
+        // Method to bind actions to key press, hold, and release
+        bindKey(key, { onPress, onHold, onRelease }) {
+          this.keyBindings[key.toLowerCase()] = { onPress, onHold, onRelease };
+        }
+      }
+
       class GameEngine {
         constructor(width, height) {
           this.gameWidth = width;
@@ -45,7 +91,7 @@
             lagFactor: 0.1,
           };
 
-          this.keys = { w: false, s: false, a: false, d: false };
+          this.input = new InputHandler();
           this.lastUpdateTime = 0;
 
           this.scaleFactor = 1;
@@ -59,8 +105,9 @@
           this.updateCanvasSize();
 
           window.addEventListener("resize", () => this.updateCanvasSize());
-          window.addEventListener("keydown", (e) => this.handleKeyDown(e));
-          window.addEventListener("keyup", (e) => this.handleKeyUp(e));
+
+          // Bind movement keys (WASD) to player actions
+          this.bindMovementKeys();
 
           this.startGameLoop();
         }
@@ -79,47 +126,43 @@
           this.camera.height = this.canvas.height / this.scaleFactor;
         }
 
-        handleKeyDown(event) {
-          if (event.key === "w") this.keys.w = true;
-          if (event.key === "s") this.keys.s = true;
-          if (event.key === "a") this.keys.a = true;
-          if (event.key === "d") this.keys.d = true;
+        bindMovementKeys() {
+          // W key (Move Up)
+          this.input.bindKey("w", {
+            onHold: () => this.movePlayer(0, -1),
+          });
+
+          // S key (Move Down)
+          this.input.bindKey("s", {
+            onHold: () => this.movePlayer(0, 1),
+          });
+
+          // A key (Move Left)
+          this.input.bindKey("a", {
+            onHold: () => this.movePlayer(-1, 0),
+          });
+
+          // D key (Move Right)
+          this.input.bindKey("d", {
+            onHold: () => this.movePlayer(1, 0),
+          });
         }
 
-        handleKeyUp(event) {
-          if (event.key === "w") this.keys.w = false;
-          if (event.key === "s") this.keys.s = false;
-          if (event.key === "a") this.keys.a = false;
-          if (event.key === "d") this.keys.d = false;
-        }
-
-        update(deltaTime) {
-          let dirX = 0;
-          let dirY = 0;
-
-          if (this.keys.w) dirY = -1;
-          if (this.keys.s) dirY = 1;
-          if (this.keys.a) dirX = -1;
-          if (this.keys.d) dirX = 1;
-
-          // Normalize direction for diagonal movement and prevent faster diagonal speed
+        movePlayer(dirX, dirY) {
+          // Normalize direction for diagonal movement
           const magnitude = Math.sqrt(dirX * dirX + dirY * dirY);
           if (magnitude > 0) {
             dirX /= magnitude;
             dirY /= magnitude;
           }
 
-          // Set the velocity and angle based on movement
+          // Set the velocity based on movement
           this.player.velocity.x = dirX * this.player.speed;
           this.player.velocity.y = dirY * this.player.speed;
 
-          if (dirX !== 0 || dirY !== 0) {
-            this.player.angle = Math.atan2(dirY, dirX);
-          }
-
           // Update player position based on velocity
-          this.player.x += this.player.velocity.x * deltaTime;
-          this.player.y += this.player.velocity.y * deltaTime;
+          this.player.x += this.player.velocity.x / 60; // divide by 60 to approximate frame rate
+          this.player.y += this.player.velocity.y / 60;
 
           // Keep player inside the world bounds
           this.player.x = Math.max(0, Math.min(this.worldWidth, this.player.x));
@@ -127,6 +170,11 @@
             0,
             Math.min(this.worldHeight, this.player.y)
           );
+
+          // Update player's angle based on direction
+          if (dirX !== 0 || dirY !== 0) {
+            this.player.angle = Math.atan2(dirY, dirX);
+          }
 
           // Smooth camera follow with lag effect
           this.camera.x +=
@@ -241,7 +289,8 @@
             const deltaTime = (timestamp - this.lastUpdateTime) / 1000;
             this.lastUpdateTime = timestamp;
 
-            this.update(deltaTime);
+            this.input.update(); // Update input handler
+
             this.render();
 
             requestAnimationFrame(loop);
