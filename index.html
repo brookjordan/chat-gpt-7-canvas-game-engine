@@ -7,6 +7,7 @@
     <style>
       body {
         margin: 0;
+        overflow: hidden;
       }
       canvas {
         display: block;
@@ -22,6 +23,8 @@
         constructor(width, height) {
           this.gameWidth = width;
           this.gameHeight = height;
+          this.worldWidth = width * 2; // Larger world than the viewable area
+          this.worldHeight = height * 2;
           this.canvas = document.getElementById("gameCanvas");
           this.ctx = this.canvas.getContext("2d");
 
@@ -34,10 +37,11 @@
             velocity: { x: 0, y: 0 },
           };
 
+          this.camera = { x: 0, y: 0, width: width, height: height };
+
           this.keys = { w: false, s: false, a: false, d: false };
           this.lastUpdateTime = 0;
 
-          this.scaleFactor = 1;
           this.updateCanvasSize();
 
           window.addEventListener("resize", () => this.updateCanvasSize());
@@ -48,20 +52,12 @@
         }
 
         updateCanvasSize() {
-          const aspectRatio = this.gameWidth / this.gameHeight;
-          const windowAspect = window.innerWidth / window.innerHeight;
+          // Resize the canvas to full window size
+          this.canvas.width = window.innerWidth;
+          this.canvas.height = window.innerHeight;
 
-          if (windowAspect > aspectRatio) {
-            // Window is wider than the game aspect ratio
-            this.canvas.height = window.innerHeight;
-            this.canvas.width = this.canvas.height * aspectRatio;
-          } else {
-            // Window is taller than the game aspect ratio
-            this.canvas.width = window.innerWidth;
-            this.canvas.height = this.canvas.width / aspectRatio;
-          }
-
-          this.scaleFactor = this.canvas.width / this.gameWidth;
+          this.scaleFactorX = this.canvas.width / this.gameWidth;
+          this.scaleFactorY = this.canvas.height / this.gameHeight;
         }
 
         handleKeyDown(event) {
@@ -87,7 +83,7 @@
           if (this.keys.a) dirX = -1;
           if (this.keys.d) dirX = 1;
 
-          // Normalize direction for diagonal movement
+          // Normalize direction for diagonal movement and prevent faster diagonal speed
           const magnitude = Math.sqrt(dirX * dirX + dirY * dirY);
           if (magnitude > 0) {
             dirX /= magnitude;
@@ -106,20 +102,59 @@
           this.player.x += this.player.velocity.x * deltaTime;
           this.player.y += this.player.velocity.y * deltaTime;
 
-          // Prevent player from moving out of bounds
-          this.player.x = Math.max(0, Math.min(this.gameWidth, this.player.x));
-          this.player.y = Math.max(0, Math.min(this.gameHeight, this.player.y));
+          // Keep player inside the world bounds
+          this.player.x = Math.max(0, Math.min(this.worldWidth, this.player.x));
+          this.player.y = Math.max(
+            0,
+            Math.min(this.worldHeight, this.player.y)
+          );
+
+          // Update camera position to follow the player, keeping the player centered
+          this.camera.x = Math.max(
+            0,
+            Math.min(
+              this.worldWidth - this.camera.width,
+              this.player.x - this.camera.width / 2
+            )
+          );
+          this.camera.y = Math.max(
+            0,
+            Math.min(
+              this.worldHeight - this.camera.height,
+              this.player.y - this.camera.height / 2
+            )
+          );
         }
 
         drawCheckerboard() {
-          const tileSize = 50;
-          const cols = Math.ceil(this.gameWidth / tileSize);
-          const rows = Math.ceil(this.gameHeight / tileSize);
+          const tileSize = 100;
+          const scaledTileSizeX = tileSize * this.scaleFactorX;
+          const scaledTileSizeY = tileSize * this.scaleFactorY;
+          const startX =
+            Math.floor(this.camera.x / scaledTileSizeX) * scaledTileSizeX;
+          const startY =
+            Math.floor(this.camera.y / scaledTileSizeY) * scaledTileSizeY;
 
-          for (let y = 0; y < rows; y++) {
-            for (let x = 0; x < cols; x++) {
-              this.ctx.fillStyle = (x + y) % 2 === 0 ? "#ddd" : "#999";
-              this.ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          for (
+            let y = startY;
+            y < this.camera.y + this.camera.height;
+            y += scaledTileSizeY
+          ) {
+            for (
+              let x = startX;
+              x < this.camera.x + this.camera.width;
+              x += scaledTileSizeX
+            ) {
+              this.ctx.fillStyle =
+                (x / scaledTileSizeX + y / scaledTileSizeY) % 2 === 0
+                  ? "#ddd"
+                  : "#999";
+              this.ctx.fillRect(
+                (x - this.camera.x) * this.scaleFactorX,
+                (y - this.camera.y) * this.scaleFactorY,
+                scaledTileSizeX,
+                scaledTileSizeY
+              );
             }
           }
         }
@@ -128,14 +163,17 @@
           const { x, y, size, angle } = this.player;
 
           this.ctx.save();
-          this.ctx.translate(x * this.scaleFactor, y * this.scaleFactor);
+          this.ctx.translate(
+            (this.player.x - this.camera.x) * this.scaleFactorX,
+            (this.player.y - this.camera.y) * this.scaleFactorY
+          );
           this.ctx.rotate(angle);
           this.ctx.fillStyle = "blue";
           this.ctx.fillRect(
-            (-size / 2) * this.scaleFactor,
-            (-size / 2) * this.scaleFactor,
-            size * this.scaleFactor,
-            size * this.scaleFactor
+            (-size / 2) * this.scaleFactorX,
+            (-size / 2) * this.scaleFactorY,
+            size * this.scaleFactorX,
+            size * this.scaleFactorY
           );
           this.ctx.restore();
         }
@@ -165,7 +203,7 @@
         }
       }
 
-      // Initialize the game with width 800 and height 600
+      // Initialize the game with width 800 and height 600 for the game world dimensions
       const game = new GameEngine(800, 600);
     </script>
   </body>
