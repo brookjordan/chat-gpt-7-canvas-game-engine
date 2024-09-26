@@ -167,6 +167,7 @@
             onHold: () => {
               if (
                 !this.player.isJumping &&
+                !this.player.isChargingJump &&
                 this.input.isKeyMoreRecentThan("w", "s")
               ) {
                 this.acceleratePlayer(0, -1);
@@ -179,6 +180,7 @@
             onHold: () => {
               if (
                 !this.player.isJumping &&
+                !this.player.isChargingJump &&
                 this.input.isKeyMoreRecentThan("s", "w")
               ) {
                 this.acceleratePlayer(0, 1);
@@ -191,6 +193,7 @@
             onHold: () => {
               if (
                 !this.player.isJumping &&
+                !this.player.isChargingJump &&
                 this.input.isKeyMoreRecentThan("a", "d")
               ) {
                 this.acceleratePlayer(-1, 0);
@@ -203,6 +206,7 @@
             onHold: () => {
               if (
                 !this.player.isJumping &&
+                !this.player.isChargingJump &&
                 this.input.isKeyMoreRecentThan("d", "a")
               ) {
                 this.acceleratePlayer(1, 0);
@@ -224,6 +228,7 @@
                   1,
                   this.player.jumpCharge + 0.01
                 );
+                // Scale the character down as crouch progresses
                 this.player.crouchFactor = 1 - this.player.jumpCharge * 0.2;
 
                 // Slow down the character's speed while charging jump
@@ -257,8 +262,8 @@
         }
 
         acceleratePlayer(dirX, dirY) {
-          // Only accelerate if on the ground
-          if (!this.player.isJumping) {
+          // Only accelerate if on the ground and not charging jump
+          if (!this.player.isJumping && !this.player.isChargingJump) {
             const acceleration = this.player.acceleration / 60; // Frame-based acceleration
             this.player.velocity.x += dirX * acceleration;
             this.player.velocity.y += dirY * acceleration;
@@ -390,6 +395,7 @@
 
           const frame =
             this.spriteSheet[Math.floor(this.currentFrame / this.frameSpeed)];
+          // Apply crouch factor to vertical scaling
           this.ctx.drawImage(
             frame,
             (-size / 2) * this.scaleFactor,
